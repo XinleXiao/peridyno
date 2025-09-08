@@ -17,7 +17,7 @@
 #include <string>
 
 #define STRESSAWARE
-//#define DFSPH_JACOBI
+//#define DFSPH_ORIGIN  //Do not apply semi-analytical free surface boundary 
 
 namespace dyno
 {

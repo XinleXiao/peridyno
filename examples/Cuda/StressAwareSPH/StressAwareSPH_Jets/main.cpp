@@ -125,7 +125,7 @@ std::shared_ptr<SceneGraph> createScene()
 	ptsLoader->varRotation()->setValue(Vec3f(0.0f, 0.0f, 3.1415926f));
 	ptsLoader->varLocation()->setValue(Vec3f(0.0f, 0.0f, 0.23f));
 	auto initialParticles = scn->addNode(std::make_shared<MakeParticleSystem<DataType3f >>());
-	//initialParticles->varInitialVelocity()->setValue(Vec3f(0.0f, 0.0f, -1.5f));
+	initialParticles->varInitialVelocity()->setValue(Vec3f(0.0f, 0.0f, -1.5f));
 	ptsLoader->outPointSet()->promoteOuput()->connect(initialParticles->inPoints());
 
 	auto ptsLoader2 = scn->addNode(std::make_shared<PointsLoader<DataType3f>>());
@@ -133,7 +133,7 @@ std::shared_ptr<SceneGraph> createScene()
 	ptsLoader2->varRotation()->setValue(Vec3f(0.0f, 0.0f, 0.0));
 	ptsLoader2->varLocation()->setValue(Vec3f(0.0f, 0.0f, -0.23f));
 	auto initialParticles2 = scn->addNode(std::make_shared<MakeParticleSystem<DataType3f >>());
-	//initialParticles2->varInitialVelocity()->setValue(Vec3f(0.0f, 0.0f, 1.5f));
+	initialParticles2->varInitialVelocity()->setValue(Vec3f(0.0f, 0.0f, 1.5f));
 	ptsLoader2->outPointSet()->promoteOuput()->connect(initialParticles2->inPoints());
 
 	auto fluid = scn->addNode(std::make_shared<SASPHFluidSystem<DataType3f>>());

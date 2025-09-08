@@ -96,7 +96,7 @@ namespace dyno
 		Real density_i = density[pId];// > density_0 ? density[pId] : density_0;
 
 		if (inv_alpha_i < EPSILON)// || density_i < 0.95 * density_0 || density_i > 1.05 * density_0)
-#ifdef DFSPH_JACOBI
+#ifdef DFSPH_ORIGIN
 			alpha[pId] = 0.0f;
 #else
 			alpha[pId] = 1.0f / EPSILON;
@@ -191,13 +191,11 @@ namespace dyno
 			}
 		}
 
-#ifdef DFSPH_JACOBI
+#ifdef DFSPH_ORIGIN
 		densityAdv_i = densityAdv_i > 0.0f ? densityAdv_i : 0.0f;
 
 		if (nbSize < 5) densityAdv_i = 0.0f;
-#endif // DFSPH_JACOBI
-
-		
+#endif 
 
 		densityAdv[pId] = densityAdv_i;
 
@@ -278,6 +276,7 @@ namespace dyno
 		DArray<Coord> accelArr,
 		DArray<Real> densityAdv,
 		DArray<Real> Alpha,
+		Real Alpha_min,
 		DArrayList<int> neighbors,
 		Real density_0,
 		Real mass,
@@ -313,20 +312,29 @@ namespace dyno
 
 		aij_pj *= dt;
 
+#ifndef DFSPH_ORIGIN
+		aij_pj += mKappa_v[pId] * 2.0f * dt * (1.0f / Alpha[pId] - 1.0f / Alpha_min);
+#endif
+
 		Real s_i = -densityAdv[pId];
 
 		Real res = s_i - aij_pj;
+
+#ifdef DFSPH_ORIGIN
 		res = res < 0.0f ? res : 0.0f;
 		if (nbSize < 20)
 			res = 0.0f;
+#endif
 
 		Real mKappa_v_i = mKappa_v[pId];
 
+#ifdef DFSPH_ORIGIN
 		mKappa_v_i = mKappa_v_i - 0.5f * (s_i - aij_pj) * Alpha[pId] / dt;
 		mKappa_v_i = mKappa_v_i > 0.0f ? mKappa_v_i : 0.0f;
-
-
-
+#else
+		mKappa_v_i = mKappa_v_i - 0.5f * (s_i - aij_pj) * Alpha_min / dt;
+#endif
+		
 		mKappa_v[pId] = mKappa_v_i;
 		res_v[pId] = fabs(res);
 	}
@@ -394,13 +402,10 @@ namespace dyno
 
 		density_i = density_i + dt * delta;
 
-
-
-#ifndef DFSPH_JACOBI
+#ifndef DFSPH_ORIGIN
 		Real ep = 0.0f; //this parameter can control surface tension?
 		density_i = density_i > density_0 ? density_i : ep * density_i + (1.0f - ep) * density_0;
 #endif // DFSPH_JACOBI
-		
 
 		densityAdv[pId] = density_i;
 	}
@@ -431,6 +436,7 @@ namespace dyno
 		DArray<Coord> accelArr,
 		DArray<Real> densityAdv,
 		DArray<Real> Alpha,
+		Real Alpha_min,
 		DArrayList<int> neighbors,
 		Real density_0,
 		Real mass,
@@ -466,8 +472,21 @@ namespace dyno
 
 		aij_pj = aij_pj * dt * dt;
 
+#ifndef DFSPH_ORIGIN
+		aij_pj += mKappa_r[pId] * 2.0f * dt * dt * (1.0f / Alpha[pId] - 1.0f / Alpha_min);
+#endif // !DFSPH_ORIGIN
+
 		Real s_i = (density_0 - densityAdv[pId]) / density_0;
 
+#ifndef DFSPH_ORIGIN
+		Real res = s_i - aij_pj;
+
+		Real mKappa_r_i = mKappa_r[pId];
+		mKappa_r_i = mKappa_r_i - 0.5f * (s_i - aij_pj) * Alpha_min / dt / dt;
+
+		mKappa_r[pId] = mKappa_r_i;
+		res_r[pId] = fabs(res) / density_0;
+#else
 		Real res = s_i - aij_pj;
 		res = res < 0.0f ? res : 0.0f;
 
@@ -476,10 +495,11 @@ namespace dyno
 		mKappa_r_i = mKappa_r_i - 0.5f * (s_i - aij_pj) * Alpha[pId] / dt / dt;
 		mKappa_r_i = mKappa_r_i > 0.0f ? mKappa_r_i : 0.0f;
 
-		//mKappa_r_i = -res * Alpha[pId] / dt / dt;
-
 		mKappa_r[pId] = mKappa_r_i;
 		res_r[pId] = fabs(res) / density_0;
+#endif // !DFSPH_ORIGIN
+
+		
 	}
 
 	template<typename Real>
@@ -920,9 +940,8 @@ namespace dyno
 			m_kernel,
 			scalingfactor
 		);
-		
-#ifndef DFSPH_JACOBI
 
+#ifndef DFSPH_ORIGIN
 		//semi-implicit boundary condition
 		//alpha_i = min(alpha)
 		//if (frag_number < 10)
@@ -938,11 +957,7 @@ namespace dyno
 			Alpha_min,
 			1.0f
 		);
-#endif // !DFSPH_JACOBI
-
-		
-
-
+#endif
 		int it1 = 0;
 		int it2 = 0;
 		//Divergence Solver	
@@ -969,8 +984,6 @@ namespace dyno
 				mAlpha_c,
 				dt
 			);
-
-#ifdef DFSPH_JACOBI
 		
 			//Jacobi iteration
 			Real v_err = 10000.0f;
@@ -996,7 +1009,8 @@ namespace dyno
 					this->inPosition()->getData(),
 					mAccel,
 					mDensityAdv,
-					mAlpha_c,
+					mAlpha,
+					Alpha_min,
 					this->inNeighborIds()->getData(),
 					rho_0,
 					mass,
@@ -1016,131 +1030,124 @@ namespace dyno
 
 				it1++;
 			}
-#else
-			//using CG solver
-			{
-				cuExecute(num, SADFSPH_SourceTerm_Div,
-					m_source,
-					mDensityAdv
-				);
+/*
+			////using CG solver
+			//{
+			//	cuExecute(num, SADFSPH_SourceTerm_Div,
+			//		m_source,
+			//		mDensityAdv
+			//	);
 
-				/*cuExecute(num, SADFSPH_SourceTerm_Div_Correct,
-					m_source,
-					mSummation->outDensity()->getData(),
-					rho_0,
-					dt
-				);*/
+			//	cuExecute(num, SADFSAPH_KappaAccel,
+			//		mAccel,
+			//		this->inPosition()->getData(),
+			//		mKappa_v,
+			//		mSummation->outDensity()->getData(),
+			//		this->inNeighborIds()->getData(),
+			//		rho_0,
+			//		mass,
+			//		h,
+			//		mPara,
+			//		m_kernel,
+			//		scalingfactor
+			//	);
 
-				cuExecute(num, SADFSAPH_KappaAccel,
-					mAccel,
-					this->inPosition()->getData(),
-					mKappa_v,
-					mSummation->outDensity()->getData(),
-					this->inNeighborIds()->getData(),
-					rho_0,
-					mass,
-					h,
-					mPara,
-					m_kernel,
-					scalingfactor
-				);
+			//	cuExecute(num, SADFSPH_LaplacianKappa_Div,
+			//		m_Ap,
+			//		this->inPosition()->getData(),
+			//		mAccel,
+			//		this->inNeighborIds()->getData(),
+			//		mass,
+			//		h,
+			//		mPara,
+			//		m_kernel,
+			//		scalingfactor,
+			//		dt
+			//	);
 
-				cuExecute(num, SADFSPH_LaplacianKappa_Div,
-					m_Ap,
-					this->inPosition()->getData(),
-					mAccel,
-					this->inNeighborIds()->getData(),
-					mass,
-					h,
-					mPara,
-					m_kernel,
-					scalingfactor,
-					dt
-				);
+			//	cuExecute(num, SADFSPH_LaplacianKappaCorrect_Div,
+			//		m_Ap,
+			//		mKappa_v,
+			//		mAlpha,
+			//		Alpha_min,
+			//		dt
+			//	);
 
-				cuExecute(num, SADFSPH_LaplacianKappaCorrect_Div,
-					m_Ap,
-					mKappa_v,
-					mAlpha,
-					Alpha_min,
-					dt
-				);
+			//	Function2Pt::subtract(m_r, m_source, m_Ap);
+			//	m_p.assign(m_r);
 
-				Function2Pt::subtract(m_r, m_source, m_Ap);
-				m_p.assign(m_r);
+			//	auto m_arithmetic = Arithmetic<Real>::Create(num);
 
-				auto m_arithmetic = Arithmetic<Real>::Create(num);
+			//	Real rr = m_arithmetic->Dot(m_r, m_r);
+			//	Real err = num > 0 ? sqrt(rr / num) : 0.0f;
 
-				Real rr = m_arithmetic->Dot(m_r, m_r);
-				Real err = num > 0 ? sqrt(rr / num) : 0.0f;
+			//	std::cout << "0:err" << err << std::endl;
+			//	Real max_err = err;
+			//	if (abs(max_err) < EPSILON) max_err = EPSILON;
+			//	Real threshold = this->varDivergenceErrorThreshold()->getValue();
 
-				std::cout << "0:err" << err << std::endl;
-				Real max_err = err;
-				if (abs(max_err) < EPSILON) max_err = EPSILON;
-				Real threshold = this->varDivergenceErrorThreshold()->getValue();
+			//	while ((err / max_err > threshold) && (it1 <= MaxItNum) && (err > threshold))
+			//	{
+			//		it1++;
+			//		m_Ap.reset();
 
-				while ((err / max_err > threshold) && (it1 <= MaxItNum) && (err > threshold))
-				{
-					it1++;
-					m_Ap.reset();
+			//		cuExecute(num, SADFSAPH_KappaAccel,
+			//			mAccel,
+			//			this->inPosition()->getData(),
+			//			m_p,
+			//			mSummation->outDensity()->getData(),
+			//			this->inNeighborIds()->getData(),
+			//			rho_0,
+			//			mass,
+			//			h,
+			//			mPara,
+			//			m_kernel,
+			//			scalingfactor
+			//		);
 
-					cuExecute(num, SADFSAPH_KappaAccel,
-						mAccel,
-						this->inPosition()->getData(),
-						m_p,
-						mSummation->outDensity()->getData(),
-						this->inNeighborIds()->getData(),
-						rho_0,
-						mass,
-						h,
-						mPara,
-						m_kernel,
-						scalingfactor
-					);
+			//		cuExecute(num, SADFSPH_LaplacianKappa_Div,
+			//			m_Ap,
+			//			this->inPosition()->getData(),
+			//			mAccel,
+			//			this->inNeighborIds()->getData(),
+			//			mass,
+			//			h,
+			//			mPara,
+			//			m_kernel,
+			//			scalingfactor,
+			//			dt
+			//		);
+			//		//semi-implicit boundary here
+			//		cuExecute(num, SADFSPH_LaplacianKappaCorrect_Div,
+			//			m_Ap,
+			//			m_p,
+			//			mAlpha,
+			//			Alpha_min,
+			//			dt
+			//		);
 
-					cuExecute(num, SADFSPH_LaplacianKappa_Div,
-						m_Ap,
-						this->inPosition()->getData(),
-						mAccel,
-						this->inNeighborIds()->getData(),
-						mass,
-						h,
-						mPara,
-						m_kernel,
-						scalingfactor,
-						dt
-					);
-					//semi-implicit boundary here
-					cuExecute(num, SADFSPH_LaplacianKappaCorrect_Div,
-						m_Ap,
-						m_p,
-						mAlpha,
-						Alpha_min,
-						dt
-					);
+			//		float alpha = rr / (m_arithmetic->Dot(m_p, m_Ap));
 
-					float alpha = rr / (m_arithmetic->Dot(m_p, m_Ap));
+			//		//std::cout <<"111" << m_arithmetic->Dot(m_p, m_Ap) << std::endl;
+			//		Function2Pt::saxpy(mKappa_v, m_p, mKappa_v, alpha);
 
-					//std::cout <<"111" << m_arithmetic->Dot(m_p, m_Ap) << std::endl;
-					Function2Pt::saxpy(mKappa_v, m_p, mKappa_v, alpha);
+			//		Function2Pt::saxpy(m_r, m_Ap, m_r, -alpha);
 
-					Function2Pt::saxpy(m_r, m_Ap, m_r, -alpha);
+			//		Real rr_old = rr;
+			//		rr = m_arithmetic->Dot(m_r, m_r);
 
-					Real rr_old = rr;
-					rr = m_arithmetic->Dot(m_r, m_r);
+			//		Real beta = rr / rr_old;
 
-					Real beta = rr / rr_old;
+			//		Function2Pt::saxpy(m_p, m_p, m_r, beta);
+			//		err = sqrt(rr / num);
 
-					Function2Pt::saxpy(m_p, m_p, m_r, beta);
-					err = sqrt(rr / num);
+			//		std::cout << " Divergence iter:" << it1 << "||RelativeError:" << err / max_err * 100 << " % " << std::endl;
+			//	}
 
-					std::cout << " Divergence iter:" << it1 << "||RelativeError:" << err / max_err * 100 << " % " << std::endl;
-				}
+			//	delete m_arithmetic;
+			//}
+*/
 
-				delete m_arithmetic;
-			}
-
-#endif // DFSPH_JACOBI
 			//Update Velocity
 			cuExecute(num, SADFSAPH_KappaAccel,
 				mAccel,
@@ -1280,7 +1287,7 @@ namespace dyno
 
 			std::cout << "densityP_ave:" << densityP_ave << std::endl;
 
-#ifdef DFSPH_JACOBI
+
 			Real d_err = 10000.0f;
 			while(d_err > this->varDensityErrorThreshold()->getValue() && (it2 < MaxItNum))
 			{
@@ -1305,6 +1312,7 @@ namespace dyno
 					mAccel,
 					mDensityAdv,
 					mAlpha,
+					Alpha_min,
 					this->inNeighborIds()->getData(),
 					rho_0,
 					mass,
@@ -1323,123 +1331,123 @@ namespace dyno
 
 				std::cout << "d_err:" << d_err << std::endl;
 			}
-#else
 
-			//Jacobi迭代不收敛，修正为CG迭代如下：
-			cuExecute(num, SADFSPH_SourceTerm,
-				m_source,
-				mDensityAdv,
-				rho_0
-			);
+/*
+			////Jacobi迭代不收敛，修正为CG迭代如下：
+			//cuExecute(num, SADFSPH_SourceTerm,
+			//	m_source,
+			//	mDensityAdv,
+			//	rho_0
+			//);
 
-			cuExecute(num, SADFSAPH_KappaAccel,
-				mAccel,
-				this->inPosition()->getData(),
-				mKappa_r,
-				mSummation->outDensity()->getData(),
-				this->inNeighborIds()->getData(),
-				rho_0,
-				mass,
-				h,
-				mPara,
-				m_kernel,
-				scalingfactor
-			);
+			//cuExecute(num, SADFSAPH_KappaAccel,
+			//	mAccel,
+			//	this->inPosition()->getData(),
+			//	mKappa_r,
+			//	mSummation->outDensity()->getData(),
+			//	this->inNeighborIds()->getData(),
+			//	rho_0,
+			//	mass,
+			//	h,
+			//	mPara,
+			//	m_kernel,
+			//	scalingfactor
+			//);
 
-			cuExecute(num, SADFSPH_LaplacianKappa,
-				m_Ap,
-				this->inPosition()->getData(),
-				mAccel,
-				this->inNeighborIds()->getData(),
-				mass,
-				h,
-				mPara,
-				m_kernel,
-				scalingfactor,
-				dt
-			);
-			//semi-implicit boundary
-			cuExecute(num, SADFSPH_LaplacianKappaCorrect,
-				m_Ap,
-				mKappa_r,
-				mAlpha,
-				Alpha_min,
-				dt
-			);
+			//cuExecute(num, SADFSPH_LaplacianKappa,
+			//	m_Ap,
+			//	this->inPosition()->getData(),
+			//	mAccel,
+			//	this->inNeighborIds()->getData(),
+			//	mass,
+			//	h,
+			//	mPara,
+			//	m_kernel,
+			//	scalingfactor,
+			//	dt
+			//);
+			////semi-implicit boundary
+			//cuExecute(num, SADFSPH_LaplacianKappaCorrect,
+			//	m_Ap,
+			//	mKappa_r,
+			//	mAlpha,
+			//	Alpha_min,
+			//	dt
+			//);
 
-			Function2Pt::subtract(m_r, m_source, m_Ap);
+			//Function2Pt::subtract(m_r, m_source, m_Ap);
 
-			m_p.assign(m_r);
+			//m_p.assign(m_r);
 
-			auto m_arithmetic = Arithmetic<Real>::Create(num);
+			//auto m_arithmetic = Arithmetic<Real>::Create(num);
 
-			Real rr = m_arithmetic->Dot(m_r, m_r);
-			Real err = num > 0 ? sqrt(rr / num) : 0.0f;
+			//Real rr = m_arithmetic->Dot(m_r, m_r);
+			//Real err = num > 0 ? sqrt(rr / num) : 0.0f;
 
-			Real max_err = err;
-			if (abs(max_err) < EPSILON) max_err = EPSILON;
-			Real threshold = this->varDensityErrorThreshold()->getValue();
+			//Real max_err = err;
+			//if (abs(max_err) < EPSILON) max_err = EPSILON;
+			//Real threshold = this->varDensityErrorThreshold()->getValue();
 
-			while ((err / max_err > threshold) && (it2 <= MaxItNum) && (err > threshold))
-			{
-				it2++;
-				m_Ap.reset();
+			//while ((err / max_err > threshold) && (it2 <= MaxItNum) && (err > threshold))
+			//{
+			//	it2++;
+			//	m_Ap.reset();
 
-				cuExecute(num, SADFSAPH_KappaAccel,
-					mAccel,
-					this->inPosition()->getData(),
-					m_p,
-					mSummation->outDensity()->getData(),
-					this->inNeighborIds()->getData(),
-					rho_0,
-					mass,
-					h,
-					mPara,
-					m_kernel,
-					scalingfactor
-				);
+			//	cuExecute(num, SADFSAPH_KappaAccel,
+			//		mAccel,
+			//		this->inPosition()->getData(),
+			//		m_p,
+			//		mSummation->outDensity()->getData(),
+			//		this->inNeighborIds()->getData(),
+			//		rho_0,
+			//		mass,
+			//		h,
+			//		mPara,
+			//		m_kernel,
+			//		scalingfactor
+			//	);
 
-				cuExecute(num, SADFSPH_LaplacianKappa,
-					m_Ap,
-					this->inPosition()->getData(),
-					mAccel,
-					this->inNeighborIds()->getData(),
-					mass,
-					h,
-					mPara,
-					m_kernel,
-					scalingfactor,
-					dt
-				);
-				//semi-implicit boundary here
-				cuExecute(num, SADFSPH_LaplacianKappaCorrect,
-					m_Ap,
-					m_p,
-					mAlpha,
-					Alpha_min,
-					dt
-				);
+			//	cuExecute(num, SADFSPH_LaplacianKappa,
+			//		m_Ap,
+			//		this->inPosition()->getData(),
+			//		mAccel,
+			//		this->inNeighborIds()->getData(),
+			//		mass,
+			//		h,
+			//		mPara,
+			//		m_kernel,
+			//		scalingfactor,
+			//		dt
+			//	);
+			//	//semi-implicit boundary here
+			//	cuExecute(num, SADFSPH_LaplacianKappaCorrect,
+			//		m_Ap,
+			//		m_p,
+			//		mAlpha,
+			//		Alpha_min,
+			//		dt
+			//	);
 
-				float alpha = rr / (m_arithmetic->Dot(m_p, m_Ap));
+			//	float alpha = rr / (m_arithmetic->Dot(m_p, m_Ap));
 
-				//std::cout <<"111" << m_arithmetic->Dot(m_p, m_Ap) << std::endl;
-				Function2Pt::saxpy(mKappa_r, m_p, mKappa_r, alpha);
+			//	//std::cout <<"111" << m_arithmetic->Dot(m_p, m_Ap) << std::endl;
+			//	Function2Pt::saxpy(mKappa_r, m_p, mKappa_r, alpha);
 
-				Function2Pt::saxpy(m_r, m_Ap, m_r, -alpha);
+			//	Function2Pt::saxpy(m_r, m_Ap, m_r, -alpha);
 
-				Real rr_old = rr;
-				rr = m_arithmetic->Dot(m_r, m_r);
+			//	Real rr_old = rr;
+			//	rr = m_arithmetic->Dot(m_r, m_r);
 
-				Real beta = rr / rr_old;
+			//	Real beta = rr / rr_old;
 
-				Function2Pt::saxpy(m_p, m_p, m_r, beta);
-				err = sqrt(rr / num);
+			//	Function2Pt::saxpy(m_p, m_p, m_r, beta);
+			//	err = sqrt(rr / num);
 
-				std::cout << "Density iter:" << it2 << "||RelativeError:" << err / max_err * 100 << " % " << std::endl;
-			}
+			//	std::cout << "Density iter:" << it2 << "||RelativeError:" << err / max_err * 100 << " % " << std::endl;
+			//}
 
-			delete m_arithmetic;
-#endif // DFSPH_JACOBI
+			//delete m_arithmetic;
+*/
 
 			//Update Velocity
 			cuExecute(num, SADFSAPH_KappaAccel,

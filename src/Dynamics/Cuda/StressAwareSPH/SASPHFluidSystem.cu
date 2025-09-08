@@ -83,15 +83,15 @@ namespace dyno
 		this->stateParticleAttribute()->connect(m_integrator->inAttribute());
 		this->animationPipeline()->pushModule(m_integrator);
 
-		auto m_visModule = std::make_shared<ImplicitViscosity<TDataType>>();
-		m_visModule->varViscosity()->setValue(Real(0.3f));
-		this->stateTimeStep()->connect(m_visModule->inTimeStep());
-		smoothingLength->outFloating()->connect(m_visModule->inSmoothingLength());
-		this->stateTimeStep()->connect(m_visModule->inTimeStep());
-		this->statePosition()->connect(m_visModule->inPosition());
-		this->stateVelocity()->connect(m_visModule->inVelocity());
-		m_nbrQuery->outNeighborIds()->connect(m_visModule->inNeighborIds());
-		this->animationPipeline()->pushModule(m_visModule);
+		//auto m_visModule = std::make_shared<ImplicitViscosity<TDataType>>();
+		//m_visModule->varViscosity()->setValue(Real(0.3f));
+		//this->stateTimeStep()->connect(m_visModule->inTimeStep());
+		//smoothingLength->outFloating()->connect(m_visModule->inSmoothingLength());
+		//this->stateTimeStep()->connect(m_visModule->inTimeStep());
+		//this->statePosition()->connect(m_visModule->inPosition());
+		//this->stateVelocity()->connect(m_visModule->inVelocity());
+		//m_nbrQuery->outNeighborIds()->connect(m_visModule->inNeighborIds());
+		//this->animationPipeline()->pushModule(m_visModule);
 
 		this->setDt(Real(0.001f));
 	}
