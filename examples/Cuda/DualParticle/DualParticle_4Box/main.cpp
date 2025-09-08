@@ -76,8 +76,8 @@ std::shared_ptr<SceneGraph> createScene()
 	auto fluid = scn->addNode(std::make_shared<DualParticleFluid<DataType3f>>());
 	fluid->varReshuffleParticles()->setValue(true);
 	initialParticles1->connect(fluid->importInitialStates());
-	initialParticles2->connect(fluid->importInitialStates());
-	initialParticles3->connect(fluid->importInitialStates());
+	//initialParticles2->connect(fluid->importInitialStates());
+	//initialParticles3->connect(fluid->importInitialStates());
 	initialParticles4->connect(fluid->importInitialStates());
 
 	//Create a boundary
