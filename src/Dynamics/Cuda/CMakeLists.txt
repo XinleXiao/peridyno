@@ -10,6 +10,8 @@ option(PERIDYNO_LIBRARY_SEMIANALYTICALSCHEME "Enable binding the semi-analycial 
 option(PERIDYNO_LIBRARY_DUALPARTICLESYSTEM "Enable binding the dual-particle scheme library" ON)
 option(PERIDYNO_LIBRARY_MULTIPHYSICS "Enable building the multiphysics library" ON)
 
+option(PERIDYNO_LIBRARY_STRESSAWARESPH "Enable building the StressAwareSPH library" ON)
+
 if(PERIDYNO_LIBRARY_PARTICLESYSTEM)
     set(LIB_DEPENDENCY Core IO Framework Topology Modeling GLRenderEngine)
     build_library(ParticleSystem LIB_DEPENDENCY)
@@ -50,4 +52,9 @@ endif()
 if(PERIDYNO_LIBRARY_DUALPARTICLESYSTEM)
     set(LIB_DEPENDENCY SemiAnalyticalScheme)
     build_library(DualParticleSystem LIB_DEPENDENCY)
+endif()
+
+if(PERIDYNO_LIBRARY_STRESSAWARESPH) 
+    set(LIB_DEPENDENCY SemiAnalyticalScheme)
+    build_library(StressAwareSPH LIB_DEPENDENCY)
 endif()
