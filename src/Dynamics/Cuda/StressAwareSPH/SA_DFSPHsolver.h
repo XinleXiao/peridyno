@@ -80,18 +80,15 @@ namespace dyno
 		DArray<Real> m_resv;
 		DArray<Real> m_resr;
 
-		DArray<Real> m_Ap;
-		DArray<Real> m_source;
-		DArray<Real> m_p;
-		DArray<Real> m_r;
+		//DArray<Real> m_Ap;
+		//DArray<Real> m_source;
+		//DArray<Real> m_p;
+		//DArray<Real> m_r;
 
 		//surface tension term
 		DArray<Real> m_color;
 		DArray<Real> m_gradC2;
 
-		//StressAwareKernel<Real> m_kernel;
-		//SA_CubicKernel<Real> m_kernel;
-		//SA_SpikyKernel<Real> m_kernel;
 
 	#ifdef STRESSAWARE
 		StressAwareKernel<Real> m_kernel;

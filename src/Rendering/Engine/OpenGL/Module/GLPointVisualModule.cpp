@@ -129,7 +129,8 @@ namespace dyno
 		mUniformBlock.bindBufferBase(0);
 
 		mShaderProgram->use();
-		mShaderProgram->setFloat("uPointSize", this->varPointSize()->getValue());
+		//mShaderProgram->setFloat("uPointSize", this->varPointSize()->getValue());
+		mShaderProgram->setFloat("uPointSize", 0.001f);
 
 		if (rparams.mode == GLRenderMode::COLOR)
 		{

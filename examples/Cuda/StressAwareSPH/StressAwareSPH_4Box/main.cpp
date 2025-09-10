@@ -85,8 +85,8 @@ std::shared_ptr<SceneGraph> createScene()
 	auto fluid = scn->addNode(std::make_shared<SASPHFluidSystem<DataType3f>>());
 	fluid->varReshuffleParticles()->setValue(true);
 	initialParticles1->connect(fluid->importInitialStates());
-	//initialParticles2->connect(fluid->importInitialStates());
-	//initialParticles3->connect(fluid->importInitialStates());
+	initialParticles2->connect(fluid->importInitialStates());
+	initialParticles3->connect(fluid->importInitialStates());
 	initialParticles4->connect(fluid->importInitialStates());
 
 	//PBD or VSSPH
@@ -124,7 +124,8 @@ std::shared_ptr<SceneGraph> createScene()
 
 	auto ptRender = std::make_shared<GLPointVisualModule>();
 	ptRender->setColor(Color(1, 0, 0));
-	ptRender->varPointSize()->setValue(0.0035f);
+	//ptRender->varPointSize()->setValue(0.0035f);
+	ptRender->varPointSize()->setValue(0.001f);
 	ptRender->setColorMapMode(GLPointVisualModule::PER_VERTEX_SHADER);
 	fluid->statePointSet()->connect(ptRender->inPointSet());
 	colorMapper->outColor()->connect(ptRender->inColor());

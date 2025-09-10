@@ -713,7 +713,7 @@ namespace dyno
 
 		Real fac(0.0f);
 		Real p_ratio = ((pressure[pId] - pressure_min) / (pressure_max - pressure_min));
-		fac = 0.1f + 0.7f * (1.0f - (p_ratio));
+		fac = 0.05f + 0.75f * (1.0f - (p_ratio));
 
 		velocity[pId] -= factor * fac * dt * viscous_term;
 	}
@@ -870,14 +870,14 @@ namespace dyno
 			m_resv.resize(this->inPosition()->size());
 		if (m_resr.size() != this->inPosition()->size())
 			m_resr.resize(this->inPosition()->size());
-		if (m_Ap.size() != this->inPosition()->size())
-			m_Ap.resize(this->inPosition()->size());
-		if (m_source.size() != this->inPosition()->size())
-			m_source.resize(this->inPosition()->size());
-		if (m_p.size() != this->inPosition()->size())
-			m_p.resize(this->inPosition()->size());
-		if (m_r.size() != this->inPosition()->size())
-			m_r.resize(this->inPosition()->size());
+		//if (m_Ap.size() != this->inPosition()->size())
+		//	m_Ap.resize(this->inPosition()->size());
+		//if (m_source.size() != this->inPosition()->size())
+		//	m_source.resize(this->inPosition()->size());
+		//if (m_p.size() != this->inPosition()->size())
+		//	m_p.resize(this->inPosition()->size());
+		//if (m_r.size() != this->inPosition()->size())
+		//	m_r.resize(this->inPosition()->size());
 
 		if (m_color.size() != this->inPosition()->size())
 			m_color.resize(this->inPosition()->size());
@@ -1178,6 +1178,7 @@ namespace dyno
 		if (fabs(pressure_max) < EPSILON) pressure_max = EPSILON;
 		pressure_min = m_reduce_p->minimum(mKappa_v.begin(), mKappa_v.size());
 		delete m_reduce_p;
+
 		//adaptive viscosity
 		cuExecute(num, SADFSPH_artifical_viscosity,
 			this->inPosition()->getData(),
