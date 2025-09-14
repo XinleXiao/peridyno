@@ -485,7 +485,7 @@ namespace dyno
 		mKappa_r_i = mKappa_r_i - 0.5f * (s_i - aij_pj) * Alpha_min / dt / dt;
 
 		mKappa_r[pId] = mKappa_r_i;
-		res_r[pId] = fabs(res) / density_0;
+		res_r[pId] = fabs(res);// / density_0;
 #else
 		Real res = s_i - aij_pj;
 		res = res < 0.0f ? res : 0.0f;
@@ -496,178 +496,178 @@ namespace dyno
 		mKappa_r_i = mKappa_r_i > 0.0f ? mKappa_r_i : 0.0f;
 
 		mKappa_r[pId] = mKappa_r_i;
-		res_r[pId] = fabs(res) / density_0;
+		res_r[pId] = fabs(res);// / density_0;
 #endif // !DFSPH_ORIGIN
 
 		
 	}
 
-	template<typename Real>
-	__global__ void SADFSPH_SourceTerm(
-		DArray<Real> source,
-		DArray<Real> densityAdv,
-		Real density_0
-	)
-	{
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= source.size()) return;
-
-		source[pId] = (density_0 - densityAdv[pId]) / density_0;
-	}
-
-	template<typename Real, typename Coord>
-	__global__ void SADFSPH_LaplacianKappa(
-		DArray<Real> Ap,
-		DArray<Coord> pos,
-		DArray<Coord> accelArr,
-		DArrayList<int> neighbors,
-		Real mass,
-		Real smoothingLength,
-		DArray<Real> para,
-		Kernel<Real> kernel,
-		Real scale,
-		Real dt
-	)
-	{
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= Ap.size()) return;
-
-		Coord pos_i = pos[pId];
-
-		List<int>& list_i = neighbors[pId];
-		int nbSize = list_i.size();
-
-		Real aij_pj(0.0f);
-
-		for (int ne = 0; ne < nbSize; ne++)
-		{
-			int j = list_i[ne];
-			Real r = (pos_i - pos[j]).norm();
-
-			if (r > EPSILON)
-			{
-				Real s = r * expf(-(para[pId] + para[j]) / 2.0f);
-				Coord g = mass * kernel.Gradient(r, smoothingLength, s) * (pos_i - pos[j]) * (1.0f / r) * scale;
-				aij_pj += (accelArr[pId] - accelArr[j]).dot(g);
-			}
-		}
-
-		aij_pj = aij_pj * dt * dt;
-
-		Ap[pId] = aij_pj;
-	}
-
-	template<typename Real>
-	__global__ void SADFSPH_LaplacianKappaCorrect(
-		DArray<Real> Ap,
-		DArray<Real> mKappa_r,
-		DArray<Real> Alpha,
-		Real Alpha_min,
-		Real dt
-	)
-	{
-		// Aii = -2* dt*dt/Alpha_i 
-		// clamp Aii to -2* dt*dt/Alpha_min 
-
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= Ap.size()) return;
-
-		Ap[pId] = Ap[pId] + mKappa_r[pId] * 2.0f * dt * dt *
-			(1.0f / Alpha[pId] - 1.0f / Alpha_min);
-		//printf("the value:%f\n", Ap[pId]);
-
-	}
-
-	template<typename Real>
-	__global__ void  SADFSPH_SourceTerm_Div(
-		DArray<Real> source,
-		DArray<Real> densityAdv
-	)
-	{
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= source.size()) return;
-
-		source[pId] = -densityAdv[pId];
-	}
-
-	template<typename Real>
-	__global__ void  SADFSPH_SourceTerm_Div_Correct(
-		DArray<Real> source,
-		DArray<Real> density,
-		Real density_0,
-		Real dt
-	)
-	{
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= source.size()) return;
-
-		if (density[pId] > density_0)
-		{
-			source[pId] += 100000.0f * (density[pId] - density_0) * dt;
-		}
-	}
-
-	template<typename Real, typename Coord>
-	__global__ void   SADFSPH_LaplacianKappa_Div(
-		DArray<Real> Ap,
-		DArray<Coord> pos,
-		DArray<Coord> accelArr,
-		DArrayList<int> neighbors,
-		Real mass,
-		Real smoothingLength,
-		DArray<Real> para,
-		Kernel<Real> kernel,
-		Real scale,
-		Real dt
-	)
-	{
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= Ap.size()) return;
-
-		Coord pos_i = pos[pId];
-
-		List<int>& list_i = neighbors[pId];
-		int nbSize = list_i.size();
-
-		Real aij_pj(0.0f);
-
-		for (int ne = 0; ne < nbSize; ne++)
-		{
-			int j = list_i[ne];
-			Real r = (pos_i - pos[j]).norm();
-
-			if (r > EPSILON)
-			{
-				Real s = r * expf(-(para[pId] + para[j]) / 2.0f);
-				Coord g = mass * kernel.Gradient(r, smoothingLength, s) * (pos_i - pos[j]) * (1.0f / r) * scale;
-				aij_pj += (accelArr[pId] - accelArr[j]).dot(g);
-			}
-		}
-
-		aij_pj = aij_pj * dt;
-
-		Ap[pId] = aij_pj;
-	}
-
-	template<typename Real>
-	__global__ void SADFSPH_LaplacianKappaCorrect_Div(
-		DArray<Real> Ap,
-		DArray<Real> mKappa_v,
-		DArray<Real> Alpha,
-		Real Alpha_min,
-		Real dt
-	)
-	{
-		// Aii = -2* dt/Alpha_i 
-		// clamp Aii to -2* dt/Alpha_min 
-
-		int pId = threadIdx.x + (blockIdx.x * blockDim.x);
-		if (pId >= Ap.size()) return;
-
-		Ap[pId] = Ap[pId] + mKappa_v[pId] * 2.0f * dt *
-			(1.0f / Alpha[pId] - 1.0f / Alpha_min);
-		//printf("the value:%f\n", Ap[pId]);
-	}
+	//template<typename Real>
+	//__global__ void SADFSPH_SourceTerm(
+	//	DArray<Real> source,
+	//	DArray<Real> densityAdv,
+	//	Real density_0
+	//)
+	//{
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= source.size()) return;
+	//
+	//	source[pId] = (density_0 - densityAdv[pId]) / density_0;
+	//}
+	//
+	//template<typename Real, typename Coord>
+	//__global__ void SADFSPH_LaplacianKappa(
+	//	DArray<Real> Ap,
+	//	DArray<Coord> pos,
+	//	DArray<Coord> accelArr,
+	//	DArrayList<int> neighbors,
+	//	Real mass,
+	//	Real smoothingLength,
+	//	DArray<Real> para,
+	//	Kernel<Real> kernel,
+	//	Real scale,
+	//	Real dt
+	//)
+	//{
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= Ap.size()) return;
+	//
+	//	Coord pos_i = pos[pId];
+	//
+	//	List<int>& list_i = neighbors[pId];
+	//	int nbSize = list_i.size();
+	//
+	//	Real aij_pj(0.0f);
+	//
+	//	for (int ne = 0; ne < nbSize; ne++)
+	//	{
+	//		int j = list_i[ne];
+	//		Real r = (pos_i - pos[j]).norm();
+	//
+	//		if (r > EPSILON)
+	//		{
+	//			Real s = r * expf(-(para[pId] + para[j]) / 2.0f);
+	//			Coord g = mass * kernel.Gradient(r, smoothingLength, s) * (pos_i - pos[j]) * (1.0f / r) * scale;
+	//			aij_pj += (accelArr[pId] - accelArr[j]).dot(g);
+	//		}
+	//	}
+	//
+	//	aij_pj = aij_pj * dt * dt;
+	//
+	//	Ap[pId] = aij_pj;
+	//}
+	//
+	//template<typename Real>
+	//__global__ void SADFSPH_LaplacianKappaCorrect(
+	//	DArray<Real> Ap,
+	//	DArray<Real> mKappa_r,
+	//	DArray<Real> Alpha,
+	//	Real Alpha_min,
+	//	Real dt
+	//)
+	//{
+	//	// Aii = -2* dt*dt/Alpha_i 
+	//	// clamp Aii to -2* dt*dt/Alpha_min 
+	//
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= Ap.size()) return;
+	//
+	//	Ap[pId] = Ap[pId] + mKappa_r[pId] * 2.0f * dt * dt *
+	//		(1.0f / Alpha[pId] - 1.0f / Alpha_min);
+	//	//printf("the value:%f\n", Ap[pId]);
+	//
+	//}
+	//
+	//template<typename Real>
+	//__global__ void  SADFSPH_SourceTerm_Div(
+	//	DArray<Real> source,
+	//	DArray<Real> densityAdv
+	//)
+	//{
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= source.size()) return;
+	//
+	//	source[pId] = -densityAdv[pId];
+	//}
+	//
+	//template<typename Real>
+	//__global__ void  SADFSPH_SourceTerm_Div_Correct(
+	//	DArray<Real> source,
+	//	DArray<Real> density,
+	//	Real density_0,
+	//	Real dt
+	//)
+	//{
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= source.size()) return;
+	//
+	//	if (density[pId] > density_0)
+	//	{
+	//		source[pId] += 100000.0f * (density[pId] - density_0) * dt;
+	//	}
+	//}
+	//
+	//template<typename Real, typename Coord>
+	//__global__ void   SADFSPH_LaplacianKappa_Div(
+	//	DArray<Real> Ap,
+	//	DArray<Coord> pos,
+	//	DArray<Coord> accelArr,
+	//	DArrayList<int> neighbors,
+	//	Real mass,
+	//	Real smoothingLength,
+	//	DArray<Real> para,
+	//	Kernel<Real> kernel,
+	//	Real scale,
+	//	Real dt
+	//)
+	//{
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= Ap.size()) return;
+	//
+	//	Coord pos_i = pos[pId];
+	//
+	//	List<int>& list_i = neighbors[pId];
+	//	int nbSize = list_i.size();
+	//
+	//	Real aij_pj(0.0f);
+	//
+	//	for (int ne = 0; ne < nbSize; ne++)
+	//	{
+	//		int j = list_i[ne];
+	//		Real r = (pos_i - pos[j]).norm();
+	//
+	//		if (r > EPSILON)
+	//		{
+	//			Real s = r * expf(-(para[pId] + para[j]) / 2.0f);
+	//			Coord g = mass * kernel.Gradient(r, smoothingLength, s) * (pos_i - pos[j]) * (1.0f / r) * scale;
+	//			aij_pj += (accelArr[pId] - accelArr[j]).dot(g);
+	//		}
+	//	}
+	//
+	//	aij_pj = aij_pj * dt;
+	//
+	//	Ap[pId] = aij_pj;
+	//}
+	//
+	//template<typename Real>
+	//__global__ void SADFSPH_LaplacianKappaCorrect_Div(
+	//	DArray<Real> Ap,
+	//	DArray<Real> mKappa_v,
+	//	DArray<Real> Alpha,
+	//	Real Alpha_min,
+	//	Real dt
+	//)
+	//{
+	//	// Aii = -2* dt/Alpha_i 
+	//	// clamp Aii to -2* dt/Alpha_min 
+	//
+	//	int pId = threadIdx.x + (blockIdx.x * blockDim.x);
+	//	if (pId >= Ap.size()) return;
+	//
+	//	Ap[pId] = Ap[pId] + mKappa_v[pId] * 2.0f * dt *
+	//		(1.0f / Alpha[pId] - 1.0f / Alpha_min);
+	//	//printf("the value:%f\n", Ap[pId]);
+	//}
 
 	template<typename Real, typename Coord>
 	__global__ void SADFSPH_artifical_viscosity(

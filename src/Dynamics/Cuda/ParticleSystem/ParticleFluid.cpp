@@ -80,29 +80,29 @@ namespace dyno
 		integrator->connect(density->importModules());
 		density->connect(viscosity->importModules());
 
-		//Setup the default render modules
-		auto calculateNorm = std::make_shared<CalculateNorm<DataType3f>>();
-		this->stateVelocity()->connect(calculateNorm->inVec());
-		this->graphicsPipeline()->pushModule(calculateNorm);
+		////Setup the default render modules
+		//auto calculateNorm = std::make_shared<CalculateNorm<DataType3f>>();
+		//this->stateVelocity()->connect(calculateNorm->inVec());
+		//this->graphicsPipeline()->pushModule(calculateNorm);
 
-		auto colorMapper = std::make_shared<ColorMapping<DataType3f>>();
-		colorMapper->varMax()->setValue(5.0f);
-		calculateNorm->outNorm()->connect(colorMapper->inScalar());
-		this->graphicsPipeline()->pushModule(colorMapper);
+		//auto colorMapper = std::make_shared<ColorMapping<DataType3f>>();
+		//colorMapper->varMax()->setValue(5.0f);
+		//calculateNorm->outNorm()->connect(colorMapper->inScalar());
+		//this->graphicsPipeline()->pushModule(colorMapper);
 
-		auto ptRender = std::make_shared<GLPointVisualModule>();
-		ptRender->varPointSize()->setValue(0.0035f);
-		ptRender->setColor(Color(1, 0, 0));
-		ptRender->setColorMapMode(GLPointVisualModule::PER_VERTEX_SHADER);
+		//auto ptRender = std::make_shared<GLPointVisualModule>();
+		//ptRender->varPointSize()->setValue(0.0035f);
+		//ptRender->setColor(Color(1, 0, 0));
+		//ptRender->setColorMapMode(GLPointVisualModule::PER_VERTEX_SHADER);
 
-		this->statePointSet()->connect(ptRender->inPointSet());
-		colorMapper->outColor()->connect(ptRender->inColor());
+		//this->statePointSet()->connect(ptRender->inPointSet());
+		//colorMapper->outColor()->connect(ptRender->inColor());
 
-		this->graphicsPipeline()->pushModule(ptRender);
+		//this->graphicsPipeline()->pushModule(ptRender);
 
 		this->setDt(Real(0.001));
 	}
-
+ 
 	template<typename TDataType>
 	ParticleFluid<TDataType>::~ParticleFluid()
 	{
